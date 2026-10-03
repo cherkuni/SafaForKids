@@ -1,5 +1,7 @@
 # 🌍 WorldSorter: Language Match Game
 
+**[🎮 Play the Game Now!](https://cherkuni.github.io/SafaForKids/)**
+
 A fast-paced, interactive drag-and-drop educational game designed to help users learn basic vocabulary across 12 different languages. Match the word to the correct country flag, build your streak, and discover new words across 15 distinct themes!
 
 ## ✨ Features
