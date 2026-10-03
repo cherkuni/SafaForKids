@@ -519,13 +519,11 @@
             })).sort(() => Math.random() - 0.5);
             
             initProgressBar();
-            setupDropZones();
             showNextCard();
         }
 
-        function setupDropZones() {
+        function setupDropZones(visualLangs) {
             uiDropZonesContainer.innerHTML = '';
-            const visualLangs = [...roundLanguages].sort(() => Math.random() - 0.5);
             
             visualLangs.forEach(lang => {
                 const zoneWrap = document.createElement('div');
@@ -557,9 +555,6 @@
         }
 
         function showNextCard() {
-            // Un-gray all flags for the new word
-            document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('grayed-out'));
-
             if (currentWordsQueue.length === 0) {
                 // Round Complete
                 playSound('theme-complete');
@@ -579,6 +574,13 @@
             currentActiveWord = currentWordsQueue.pop();
             wordAttempted = false; 
             
+            // Generate exactly 6 flags: 1 correct + 5 random decoys
+            let decoys = LANG_CODES.filter(l => l !== currentActiveWord.lang);
+            decoys = decoys.sort(() => Math.random() - 0.5).slice(0, 5);
+            let currentVisualLangs = [currentActiveWord.lang, ...decoys].sort(() => Math.random() - 0.5);
+            
+            setupDropZones(currentVisualLangs);
+
             uiCardWordNative.textContent = currentActiveWord.data.n;
             if (currentActiveWord.data.r && currentActiveWord.data.r !== currentActiveWord.data.n) {
                 uiCardWordRoman.textContent = currentActiveWord.data.r;
