@@ -137,12 +137,12 @@
         }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col relative">
+<body class="h-[100dvh] w-screen flex flex-col relative overflow-hidden">
 
-    <header class="w-full pt-4 px-4 md:px-6 flex flex-col items-center justify-center z-10 shrink-0 relative">
+    <header class="w-full pt-2 md:pt-4 px-2 md:px-6 flex flex-col items-center justify-center z-10 shrink-0 relative">
         
         <!-- Global XP Bar with Hover Tooltip -->
-        <div class="w-full max-w-4xl mb-4 relative group cursor-help" id="global-xp-container">
+        <div class="w-full max-w-4xl mb-2 md:mb-4 relative group cursor-help" id="global-xp-container">
             <div class="flex justify-between text-xs font-bold text-slate-400 mb-1 px-1">
                 <span>LVL <span id="ui-level" class="text-cyan-400 text-sm">1</span></span>
                 <span><span id="ui-xp">0</span> / <span id="ui-xp-next">1000</span> XP</span>
@@ -164,53 +164,53 @@
             </div>
         </div>
 
-        <div class="w-full max-w-4xl flex justify-between px-4 mb-2">
+        <div class="w-full max-w-4xl flex justify-between px-4 mb-1 md:mb-2">
             <div class="flex flex-col items-start">
-                <span class="text-xs md:text-sm text-slate-400 font-bold uppercase tracking-widest">Score</span>
-                <span class="text-xl md:text-3xl font-black text-blue-400" id="ui-score">0</span>
+                <span class="text-[10px] md:text-sm text-slate-400 font-bold uppercase tracking-widest">Score</span>
+                <span class="text-lg md:text-3xl font-black text-blue-400" id="ui-score">0</span>
             </div>
             <div class="flex flex-col items-end">
-                <span class="text-xs md:text-sm text-slate-400 font-bold uppercase tracking-widest">Streak</span>
-                <span class="text-xl md:text-3xl font-black text-orange-400" id="ui-streak">0</span>
+                <span class="text-[10px] md:text-sm text-slate-400 font-bold uppercase tracking-widest">Streak</span>
+                <span class="text-lg md:text-3xl font-black text-orange-400" id="ui-streak">0</span>
             </div>
         </div>
 
         <!-- Clickable Theme Selector -->
-        <button id="theme-selector-btn" class="group flex items-center gap-2 hover:bg-slate-800/50 p-2 rounded-xl transition-colors">
+        <button id="theme-selector-btn" class="group flex items-center gap-1 md:gap-2 hover:bg-slate-800/50 p-1 md:p-2 rounded-xl transition-colors">
             <div class="flex flex-col items-center">
-                <span class="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1 group-hover:text-slate-300">Current Theme</span>
-                <div class="flex items-center gap-2">
-                    <h1 id="theme-title" class="text-2xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+                <span class="text-[10px] md:text-xs font-medium text-slate-400 uppercase tracking-widest mb-0.5 group-hover:text-slate-300">Current Theme</span>
+                <div class="flex items-center gap-1 md:gap-2">
+                    <h1 id="theme-title" class="text-xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
                         Loading...
                     </h1>
-                    <svg class="w-5 h-5 md:w-6 md:h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <svg class="w-4 h-4 md:w-6 md:h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
             </div>
         </button>
 
         <!-- Round Progress Bar -->
-        <div class="w-full max-w-md mt-4 flex gap-2 px-4" id="progress-container">
+        <div class="w-full max-w-md mt-1 flex gap-1 px-2 md:px-4" id="progress-container">
             <!-- Dynamically injected segments -->
         </div>
     </header>
 
-    <main class="flex-1 relative flex flex-col w-full max-w-5xl mx-auto px-2 pb-4">
+    <main class="flex-1 relative flex flex-col w-full max-w-5xl mx-auto px-1 md:px-2 pb-1 overflow-hidden">
         
         <!-- Center Arena (Active Card) -->
-        <div class="flex-1 flex flex-col items-center justify-center relative z-20" id="card-arena">
-            <div id="active-card" class="bg-white rounded-3xl w-56 h-36 sm:w-72 sm:h-48 md:w-80 md:h-52 flex flex-col items-center justify-center text-center px-4 border-4 border-slate-200 absolute hidden z-30 shadow-2xl">
+        <div class="flex-1 flex flex-col items-center justify-center relative z-20 min-h-[60px]" id="card-arena">
+            <div id="active-card" class="bg-white rounded-2xl md:rounded-3xl w-44 h-20 sm:w-72 sm:h-48 md:w-80 md:h-52 flex flex-col items-center justify-center text-center px-2 md:px-4 border-2 md:border-4 border-slate-200 absolute hidden z-30 shadow-2xl">
                 <div class="font-black text-slate-800 break-words leading-tight native-text" id="card-word-native">Word</div>
                 <div class="font-medium roman-text" id="card-word-roman">pronunciation</div>
             </div>
             
-            <div id="drag-hint" class="absolute bottom-4 sm:bottom-10 text-slate-400 font-medium tracking-wide animate-pulse pointer-events-none text-sm md:text-base flex flex-col items-center">
+            <div id="drag-hint" class="absolute bottom-0 sm:bottom-10 text-slate-400 font-medium tracking-wide animate-pulse pointer-events-none text-[10px] sm:text-xs md:text-base flex flex-col items-center">
                 <span>Drag the word to the correct flag</span>
-                <span class="text-xs opacity-70 mt-1">(Hover card for pronunciation)</span>
+                <span class="text-[9px] md:text-xs opacity-70 mt-0.5 md:mt-1">(Hover card for pronunciation)</span>
             </div>
         </div>
 
         <!-- Bottom Arena (Drop Zones - Circular Flags) -->
-        <div class="grid grid-cols-3 gap-4 md:gap-8 px-4 py-6 shrink-0 z-10 w-full place-items-center max-w-3xl mx-auto" id="drop-zones-container">
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-x-2 gap-y-2 md:gap-6 px-1 md:px-2 py-1 md:py-4 shrink-0 z-10 w-full place-items-center max-w-4xl mx-auto mb-1" id="drop-zones-container">
             <!-- Drop zones injected via JS -->
         </div>
     </main>
@@ -355,7 +355,7 @@
         let currentWordsQueue = []; 
         let currentActiveWord = null;
         let wordAttempted = false; 
-        let currentRoundTotal = 6;
+        let currentRoundTotal = 12;
         let progressIndex = 0;
 
         // DOM Elements
@@ -529,11 +529,11 @@
             
             visualLangs.forEach(lang => {
                 const zoneWrap = document.createElement('div');
-                zoneWrap.className = 'flex flex-col items-center gap-2';
+                zoneWrap.className = 'flex flex-col items-center gap-1 md:gap-2';
 
                 const zone = document.createElement('div');
-                // Ensure flags are completely circular and nicely sized
-                zone.className = 'drop-zone relative w-20 h-20 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-full border-4 border-slate-600 bg-slate-800 overflow-hidden flex items-center justify-center z-10';
+                // Ensure flags are completely circular and nicely sized to fit exactly 6 on a mobile screen
+                zone.className = 'drop-zone relative w-[20vw] h-[20vw] max-w-[3.5rem] max-h-[3.5rem] sm:max-w-[5.5rem] sm:max-h-[5.5rem] md:max-w-[7rem] md:max-h-[7rem] rounded-full border-[3px] md:border-4 border-slate-600 bg-slate-800 overflow-hidden flex items-center justify-center z-10 shadow-lg';
                 zone.dataset.lang = lang;
                 
                 const img = document.createElement('img');
@@ -547,7 +547,7 @@
                 // Add language label for tutorial mode
                 if (isTutorialMode) {
                     const label = document.createElement('span');
-                    label.className = 'text-xs md:text-sm font-bold text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-600';
+                    label.className = 'text-[9px] md:text-sm font-bold text-slate-400 bg-slate-800 px-2 md:px-3 py-0.5 md:py-1 rounded-full border border-slate-600 text-center leading-none mt-1';
                     label.textContent = LANG_NAMES[lang];
                     zoneWrap.appendChild(label);
                 }
