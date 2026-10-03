@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Language Sorter Game</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #0f172a;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,0.2) 0, transparent 50%);
+            color: #f8fafc;
+            overflow: hidden;
+            touch-action: none; 
+        }
+
+        #active-card {
+            touch-action: none;
+            user-select: none;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 255, 255, 0.1);
+            will-change: transform;
+            cursor: grab;
+            transform-origin: center center;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        #active-card:active, #active-card.dragging {
+            cursor: grabbing;
+        }
+
+        /* Native vs Transliteration text styling */
+        .native-text {
+            font-size: clamp(1.5rem, 3.5vw + 1rem, 3rem);
+            transition: transform 0.3s ease;
+        }
+        
+        .roman-text {
+            font-size: clamp(1rem, 2vw + 0.5rem, 1.5rem);
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+            color: #64748b;
+        }
+
+        /* Reveal transliteration on hover or drag */
+        #active-card:hover .roman-text,
+        #active-card.dragging .roman-text {
+            max-height: 50px;
+            opacity: 1;
+            margin-top: 0.5rem;
+        }
+
+        #active-card:hover .native-text,
+        #active-card.dragging .native-text {
+            transform: translateY(-5px);
+        }
+
+        .snap-back {
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .pop-in {
+            animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5) translateY(40px); opacity: 0; }
+            100% { transform: scale(1) translateY(0) rotate(0deg); opacity: 1; }
+        }
+
+        .drop-zone {
+            transition: all 0.2s ease;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+            aspect-ratio: 1/1; /* Fully circular */
+            border-radius: 50%;
+        }
+
+        .drop-zone.hovered {
+            transform: scale(1.15);
+            box-shadow: 0 0 25px rgba(59, 130, 246, 0.8);
+            border-color: #3b82f6;
+        }
+
+        .drop-zone.success-pulse {
+            animation: successPulse 0.5s ease-out;
+        }
+
+        .drop-zone.grayed-out {
+            filter: grayscale(100%) opacity(0.3);
+            pointer-events: none;
+            transform: scale(0.95);
+        }
+
+        @keyframes successPulse {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); transform: scale(1.15); }
+            70% { box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); transform: scale(1); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); transform: scale(1); }
+        }
+
+        .streak-toast {
+            animation: streakAnim 2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes streakAnim {
+            0% { transform: translate(-50%, 50px) scale(0.5); opacity: 0; }
+            15% { transform: translate(-50%, -20px) scale(1.2); opacity: 1; }
+            30% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+            80% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50px) scale(0.8); opacity: 0; }
+        }
+
+        .glass-modal {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        /* Custom scrollbar for theme modal */
+        #theme-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        #theme-list::-webkit-scrollbar-track {
+            background: rgba(30, 41, 59, 0.5); 
+            border-radius: 4px;
+        }
+        #theme-list::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col relative">
+
+    <header class="w-full pt-4 px-4 md:px-6 flex flex-col items-center justify-center z-10 shrink-0 relative">
+        
+        <!-- Global XP Bar with Hover Tooltip -->
+        <div class="w-full max-w-4xl mb-4 relative group cursor-help" id="global-xp-container">
+            <div class="flex justify-between text-xs font-bold text-slate-400 mb-1 px-1">
+                <span>LVL <span id="ui-level" class="text-cyan-400 text-sm">1</span></span>
+                <span><span id="ui-xp">0</span> / <span id="ui-xp-next">1000</span> XP</span>
+            </div>
+            <div class="w-full h-2 md:h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                <div id="ui-xp-fill" class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-500 w-0"></div>
+            </div>
+            
+            <!-- XP Rules Tooltip -->
+            <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 p-3 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 text-sm pointer-events-none">
+                <h4 class="font-bold text-white mb-2 border-b border-slate-600 pb-1">XP Scoring Rules:</h4>
+                <ul class="text-slate-300 space-y-1">
+                    <li class="flex justify-between"><span>1st Try Correct:</span><span class="text-emerald-400">+100 XP</span></li>
+                    <li class="flex justify-between"><span>Corrected:</span><span class="text-orange-400">+25 XP</span></li>
+                    <li class="flex justify-between"><span>Streak Bonus:</span><span class="text-yellow-400">+10x Streak</span></li>
+                    <li class="flex justify-between"><span>Complete Theme:</span><span class="text-blue-400">+500 XP</span></li>
+                    <li class="flex justify-between text-xs text-slate-400 mt-2 pt-1 border-t border-slate-700"><span>Tutorial Mode:</span><span>Halves XP</span></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="w-full max-w-4xl flex justify-between px-4 mb-2">
+            <div class="flex flex-col items-start">
+                <span class="text-xs md:text-sm text-slate-400 font-bold uppercase tracking-widest">Score</span>
+                <span class="text-xl md:text-3xl font-black text-blue-400" id="ui-score">0</span>
+            </div>
+            <div class="flex flex-col items-end">
+                <span class="text-xs md:text-sm text-slate-400 font-bold uppercase tracking-widest">Streak</span>
+                <span class="text-xl md:text-3xl font-black text-orange-400" id="ui-streak">0</span>
+            </div>
+        </div>
+
+        <!-- Clickable Theme Selector -->
+        <button id="theme-selector-btn" class="group flex items-center gap-2 hover:bg-slate-800/50 p-2 rounded-xl transition-colors">
+            <div class="flex flex-col items-center">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1 group-hover:text-slate-300">Current Theme</span>
+                <div class="flex items-center gap-2">
+                    <h1 id="theme-title" class="text-2xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">
+                        Loading...
+                    </h1>
+                    <svg class="w-5 h-5 md:w-6 md:h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+            </div>
+        </button>
+
+        <!-- Round Progress Bar -->
+        <div class="w-full max-w-md mt-4 flex gap-2 px-4" id="progress-container">
+            <!-- Dynamically injected segments -->
+        </div>
+    </header>
+
+    <main class="flex-1 relative flex flex-col w-full max-w-5xl mx-auto px-2 pb-4">
+        
+        <!-- Center Arena (Active Card) -->
+        <div class="flex-1 flex flex-col items-center justify-center relative z-20" id="card-arena">
+            <div id="active-card" class="bg-white rounded-3xl w-56 h-36 sm:w-72 sm:h-48 md:w-80 md:h-52 flex flex-col items-center justify-center text-center px-4 border-4 border-slate-200 absolute hidden z-30 shadow-2xl">
+                <div class="font-black text-slate-800 break-words leading-tight native-text" id="card-word-native">Word</div>
+                <div class="font-medium roman-text" id="card-word-roman">pronunciation</div>
+            </div>
+            
+            <div id="drag-hint" class="absolute bottom-4 sm:bottom-10 text-slate-400 font-medium tracking-wide animate-pulse pointer-events-none text-sm md:text-base flex flex-col items-center">
+                <span>Drag the word to the correct flag</span>
+                <span class="text-xs opacity-70 mt-1">(Hover card for pronunciation)</span>
+            </div>
+        </div>
+
+        <!-- Bottom Arena (Drop Zones - Circular Flags) -->
+        <div class="grid grid-cols-3 gap-4 md:gap-8 px-4 py-6 shrink-0 z-10 w-full place-items-center max-w-3xl mx-auto" id="drop-zones-container">
+            <!-- Drop zones injected via JS -->
+        </div>
+    </main>
+
+    <!-- Streak Announcement -->
+    <div id="streak-announcement" class="fixed top-1/3 left-1/2 -translate-x-1/2 pointer-events-none z-50 opacity-0 flex flex-col items-center justify-center">
+        <span class="text-6xl md:text-8xl filter drop-shadow-lg">🔥</span>
+        <h2 id="streak-text" class="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-300 drop-shadow-md mt-2 text-center whitespace-nowrap">
+            5 STREAK!
+        </h2>
+    </div>
+
+    <!-- Theme Selection Modal -->
+    <div id="theme-modal" class="fixed inset-0 glass-modal z-50 hidden opacity-0 flex flex-col items-center justify-center p-4 sm:p-6 transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 md:p-8 max-w-xl w-full shadow-2xl relative flex flex-col max-h-[90vh]">
+            <button id="close-theme-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white z-10 bg-slate-800 rounded-full p-1">
+                <svg class="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <h2 class="text-2xl md:text-3xl font-black text-white mb-4 text-center shrink-0">Select Theme</h2>
+            
+            <!-- Scrollable List -->
+            <div id="theme-list" class="flex flex-col gap-2 md:gap-3 overflow-y-auto pr-2 pb-2">
+                <!-- Themes injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="fixed inset-0 glass-modal z-50 flex flex-col items-center justify-center p-6 transition-opacity duration-300">
+        <h2 class="text-5xl md:text-7xl font-black text-white mb-2 text-center">World<span class="text-cyan-500">Sorter</span></h2>
+        <p class="text-lg md:text-xl text-slate-300 mb-8 text-center max-w-lg">Drag native words to their matching flag. Hover words for pronunciation!</p>
+        
+        <div class="flex items-center gap-3 mb-8 bg-slate-800 p-4 rounded-2xl border border-slate-700">
+            <input type="checkbox" id="tutorial-toggle" class="w-6 h-6 rounded text-cyan-500 focus:ring-cyan-500 bg-slate-700 border-slate-600">
+            <label for="tutorial-toggle" class="text-slate-200 font-medium cursor-pointer flex flex-col">
+                <span>Tutorial Mode</span>
+                <span class="text-xs text-slate-400">Shows language names on flags (Half XP)</span>
+            </label>
+        </div>
+
+        <button id="start-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xl py-4 px-12 rounded-full transition-transform active:scale-95 shadow-[0_0_20px_rgba(6,182,212,0.5)]">
+            Start Game
+        </button>
+    </div>
+
+    <script>
+        const LANG_CODES = ['en', 'es', 'fr', 'de', 'it', 'ja', 'he', 'ar', 'ru', 'hi', 'ko', 'zh'];
+        const FLAGS = { en: 'gb', es: 'es', fr: 'fr', de: 'de', it: 'it', ja: 'jp', he: 'il', ar: 'sa', ru: 'ru', hi: 'in', ko: 'kr', zh: 'cn' };
+        const LANG_NAMES = { en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian', ja: 'Japanese', he: 'Hebrew', ar: 'Arabic', ru: 'Russian', hi: 'Hindi', ko: 'Korean', zh: 'Chinese' };
+        
+        // Massive Dictionary: Native Script + Roman/Transliteration
+        const GAME_DATA = {
+            "Greetings": { 
+                en: { n: 'Hello', r: '' }, es: { n: 'Hola', r: '' }, fr: { n: 'Bonjour', r: '' }, de: { n: 'Hallo', r: '' }, it: { n: 'Ciao', r: '' }, 
+                ja: { n: 'こんにちは', r: 'Konnichiwa' }, he: { n: 'שלום', r: 'Shalom' }, ar: { n: 'مرحباً', r: 'Marhaban' }, 
+                ru: { n: 'Привет', r: 'Privet' }, hi: { n: 'नमस्ते', r: 'Namaste' }, ko: { n: '안녕하세요', r: 'Annyeonghaseyo' }, zh: { n: '你好', r: 'Nǐ hǎo' } 
+            },
+            "Gratitude": { 
+                en: { n: 'Thank you', r: '' }, es: { n: 'Gracias', r: '' }, fr: { n: 'Merci', r: '' }, de: { n: 'Danke', r: '' }, it: { n: 'Grazie', r: '' }, 
+                ja: { n: 'ありがとう', r: 'Arigatou' }, he: { n: 'תודה', r: 'Toda' }, ar: { n: 'شكراً', r: 'Shukran' }, 
+                ru: { n: 'Спасибо', r: 'Spasibo' }, hi: { n: 'धन्यवाद', r: 'Dhanyavaad' }, ko: { n: '감사합니다', r: 'Gamsahamnida' }, zh: { n: '谢谢', r: 'Xièxiè' } 
+            },
+            "Farewells": { 
+                en: { n: 'Goodbye', r: '' }, es: { n: 'Adiós', r: '' }, fr: { n: 'Au revoir', r: '' }, de: { n: 'Tschüss', r: '' }, it: { n: 'Arrivederci', r: '' }, 
+                ja: { n: 'さようなら', r: 'Sayounara' }, he: { n: 'להתראות', r: 'Lehitraot' }, ar: { n: 'وداعاً', r: 'Wadaa\'an' }, 
+                ru: { n: 'Пока', r: 'Poka' }, hi: { n: 'अलविदा', r: 'Alvida' }, ko: { n: '안녕히 가세요', r: 'Annyeonghi gaseyo' }, zh: { n: '再见', r: 'Zàijiàn' } 
+            },
+            "Numbers: One": { 
+                en: { n: 'One', r: '' }, es: { n: 'Uno', r: '' }, fr: { n: 'Un', r: '' }, de: { n: 'Eins', r: '' }, it: { n: 'Uno', r: '' }, 
+                ja: { n: '一', r: 'Ichi' }, he: { n: 'אחד', r: 'Echad' }, ar: { n: 'واحد', r: 'Wahid' }, 
+                ru: { n: 'Один', r: 'Odin' }, hi: { n: 'एक', r: 'Ek' }, ko: { n: '하나', r: 'Hana' }, zh: { n: '一', r: 'Yī' } 
+            },
+            "Colors: Red": {
+                en: { n: 'Red', r: '' }, es: { n: 'Rojo', r: '' }, fr: { n: 'Rouge', r: '' }, de: { n: 'Rot', r: '' }, it: { n: 'Rosso', r: '' },
+                ja: { n: '赤', r: 'Aka' }, he: { n: 'אדום', r: 'Adom' }, ar: { n: 'أحمر', r: 'Ahmar' },
+                ru: { n: 'Красный', r: 'Krasnyy' }, hi: { n: 'लाल', r: 'Laal' }, ko: { n: '빨간색', r: 'Ppalgansaek' }, zh: { n: '红色', r: 'Hóngsè' }
+            },
+            "Animals: Cat": {
+                en: { n: 'Cat', r: '' }, es: { n: 'Gato', r: '' }, fr: { n: 'Chat', r: '' }, de: { n: 'Katze', r: '' }, it: { n: 'Gatto', r: '' },
+                ja: { n: '猫', r: 'Neko' }, he: { n: 'חתול', r: 'Khatul' }, ar: { n: 'قطة', r: 'Qitta' },
+                ru: { n: 'Кот', r: 'Kot' }, hi: { n: 'बिल्ली', r: 'Billee' }, ko: { n: '고양이', r: 'Goyangi' }, zh: { n: '猫', r: 'Māo' }
+            },
+            "Nature: Sun": {
+                en: { n: 'Sun', r: '' }, es: { n: 'Sol', r: '' }, fr: { n: 'Soleil', r: '' }, de: { n: 'Sonne', r: '' }, it: { n: 'Sole', r: '' },
+                ja: { n: '太陽', r: 'Taiyō' }, he: { n: 'שמש', r: 'Shemesh' }, ar: { n: 'شمس', r: 'Shams' },
+                ru: { n: 'Солнце', r: 'Solntse' }, hi: { n: 'सूरज', r: 'Sooraj' }, ko: { n: '태양', r: 'Taeyang' }, zh: { n: '太阳', r: 'Tàiyáng' }
+            },
+            "Basic: Yes": {
+                en: { n: 'Yes', r: '' }, es: { n: 'Sí', r: '' }, fr: { n: 'Oui', r: '' }, de: { n: 'Ja', r: '' }, it: { n: 'Sì', r: '' },
+                ja: { n: 'はい', r: 'Hai' }, he: { n: 'כן', r: 'Ken' }, ar: { n: 'نعم', r: 'Na\'am' },
+                ru: { n: 'Да', r: 'Da' }, hi: { n: 'हाँ', r: 'Haan' }, ko: { n: '네', r: 'Ne' }, zh: { n: '是', r: 'Shì' }
+            },
+            "Basic: No": {
+                en: { n: 'No', r: '' }, es: { n: 'No', r: '' }, fr: { n: 'Non', r: '' }, de: { n: 'Nein', r: '' }, it: { n: 'No', r: '' },
+                ja: { n: 'いいえ', r: 'Iie' }, he: { n: 'לא', r: 'Lo' }, ar: { n: 'لا', r: 'La' },
+                ru: { n: 'Нет', r: 'Net' }, hi: { n: 'नहीं', r: 'Nahin' }, ko: { n: '아니요', r: 'Aniyo' }, zh: { n: '不', r: 'Bù' }
+            },
+            "Family: Mother": {
+                en: { n: 'Mother', r: '' }, es: { n: 'Madre', r: '' }, fr: { n: 'Mère', r: '' }, de: { n: 'Mutter', r: '' }, it: { n: 'Madre', r: '' },
+                ja: { n: '母', r: 'Haha' }, he: { n: 'אמא', r: 'Ima' }, ar: { n: 'أم', r: 'Umm' },
+                ru: { n: 'Мать', r: 'Mat\'' }, hi: { n: 'माँ', r: 'Maan' }, ko: { n: '어머니', r: 'Eomeoni' }, zh: { n: '母亲', r: 'Mǔqīn' }
+            },
+            "Food: Water": {
+                en: { n: 'Water', r: '' }, es: { n: 'Agua', r: '' }, fr: { n: 'Eau', r: '' }, de: { n: 'Wasser', r: '' }, it: { n: 'Acqua', r: '' },
+                ja: { n: '水', r: 'Mizu' }, he: { n: 'מים', r: 'Mayim' }, ar: { n: 'ماء', r: 'Maa\'' },
+                ru: { n: 'Вода', r: 'Voda' }, hi: { n: 'पानी', r: 'Paanee' }, ko: { n: '물', r: 'Mul' }, zh: { n: '水', r: 'Shuǐ' }
+            },
+            "Directions: Left": {
+                en: { n: 'Left', r: '' }, es: { n: 'Izquierda', r: '' }, fr: { n: 'Gauche', r: '' }, de: { n: 'Links', r: '' }, it: { n: 'Sinistra', r: '' },
+                ja: { n: '左', r: 'Hidari' }, he: { n: 'שמאל', r: 'Smol' }, ar: { n: 'يسار', r: 'Yasar' },
+                ru: { n: 'Лево', r: 'Levo' }, hi: { n: 'बाएं', r: 'Baen' }, ko: { n: '왼쪽', r: 'Oenjjok' }, zh: { n: '左', r: 'Zuǒ' }
+            },
+            "Time: Today": {
+                en: { n: 'Today', r: '' }, es: { n: 'Hoy', r: '' }, fr: { n: 'Aujourd\'hui', r: '' }, de: { n: 'Heute', r: '' }, it: { n: 'Oggi', r: '' },
+                ja: { n: '今日', r: 'Kyō' }, he: { n: 'היום', r: 'Hayom' }, ar: { n: 'اليوم', r: 'Al-yawm' },
+                ru: { n: 'Сегодня', r: 'Segodnya' }, hi: { n: 'आज', r: 'Aaj' }, ko: { n: '오늘', r: 'Oneul' }, zh: { n: '今天', r: 'Jīntiān' }
+            },
+            "Home: House": {
+                en: { n: 'House', r: '' }, es: { n: 'Casa', r: '' }, fr: { n: 'Maison', r: '' }, de: { n: 'Haus', r: '' }, it: { n: 'Casa', r: '' },
+                ja: { n: '家', r: 'Ie' }, he: { n: 'בית', r: 'Bayit' }, ar: { n: 'منزل', r: 'Manzil' },
+                ru: { n: 'Дом', r: 'Dom' }, hi: { n: 'घर', r: 'Ghar' }, ko: { n: '집', r: 'Jip' }, zh: { n: '房子', r: 'Fángzi' }
+            },
+            "Emotions: Happy": {
+                en: { n: 'Happy', r: '' }, es: { n: 'Feliz', r: '' }, fr: { n: 'Heureux', r: '' }, de: { n: 'Glücklich', r: '' }, it: { n: 'Felice', r: '' },
+                ja: { n: '幸せ', r: 'Shiawase' }, he: { n: 'שמח', r: 'Sameach' }, ar: { n: 'سعيد', r: 'Sa\'eed' },
+                ru: { n: 'Счастливый', r: 'Schastlivyy' }, hi: { n: 'खुश', r: 'Khush' }, ko: { n: '행복한', r: 'Haengbokhan' }, zh: { n: '快乐', r: 'Kuàilè' }
+            }
+        };
+
+        const THEMES = Object.keys(GAME_DATA);
+        
+        let currentThemeName = "Greetings";
+        let score = 0;
+        let globalXP = 0;
+        let currentLevel = 1;
+        let xpForNextLevel = 1000;
+        let streak = 0;
+        let completedThemes = new Set();
+        let isTutorialMode = false;
+
+        let roundLanguages = []; 
+        let currentWordsQueue = []; 
+        let currentActiveWord = null;
+        let wordAttempted = false; 
+        let currentRoundTotal = 6;
+        let progressIndex = 0;
+
+        // DOM Elements
+        const uiThemeTitle = document.getElementById('theme-title');
+        const uiScore = document.getElementById('ui-score');
+        const uiStreak = document.getElementById('ui-streak');
+        const uiLevel = document.getElementById('ui-level');
+        const uiXp = document.getElementById('ui-xp');
+        const uiXpNext = document.getElementById('ui-xp-next');
+        const uiXpFill = document.getElementById('ui-xp-fill');
+        const uiProgressContainer = document.getElementById('progress-container');
+        const uiDropZonesContainer = document.getElementById('drop-zones-container');
+        
+        const uiActiveCard = document.getElementById('active-card');
+        const uiCardWordNative = document.getElementById('card-word-native');
+        const uiCardWordRoman = document.getElementById('card-word-roman');
+        const uiDragHint = document.getElementById('drag-hint');
+        
+        const startScreen = document.getElementById('start-screen');
+        const themeModal = document.getElementById('theme-modal');
+        const streakAnnouncement = document.getElementById('streak-announcement');
+        const streakText = document.getElementById('streak-text');
+        const tutorialToggle = document.getElementById('tutorial-toggle');
+
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let translateX = 0, translateY = 0;
+        let currentHoveredZone = null;
+
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            
+            if (type === 'success') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1600, now + 0.1);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.4, now + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(now); osc.stop(now + 0.2);
+            } else if (type === 'error') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.2);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(now); osc.stop(now + 0.2);
+            } else if (type === 'streak') {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, i) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0, now + i * 0.08);
+                    gain.gain.linearRampToValueAtTime(0.2, now + i * 0.08 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.2);
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.2);
+                });
+            } else if (type === 'theme-complete') {
+                const notes = [440, 554.37, 659.25, 880]; // A Major Arp
+                notes.forEach((freq, i) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0, now + i * 0.1);
+                    gain.gain.linearRampToValueAtTime(0.3, now + i * 0.1 + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.4);
+                    osc.connect(gain); gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.4);
+                });
+            }
+        }
+
+        function addXP(amount) {
+            let xpGained = isTutorialMode ? Math.floor(amount / 2) : amount;
+            globalXP += xpGained;
+            score += xpGained;
+            
+            while (globalXP >= xpForNextLevel) {
+                globalXP -= xpForNextLevel;
+                currentLevel++;
+                xpForNextLevel = Math.floor(xpForNextLevel * 1.5); 
+                playSound('streak'); // Level up sound
+            }
+            
+            updateStats();
+        }
+
+        function updateStats() {
+            uiScore.textContent = score;
+            uiStreak.textContent = streak;
+            uiLevel.textContent = currentLevel;
+            uiXp.textContent = globalXP;
+            uiXpNext.textContent = xpForNextLevel;
+            
+            const fillPercentage = (globalXP / xpForNextLevel) * 100;
+            uiXpFill.style.width = `${fillPercentage}%`;
+            
+            if (streak > 0 && streak % 5 === 0) showStreakAnnouncement(streak);
+        }
+
+        function showStreakAnnouncement(currentStreak) {
+            playSound('streak');
+            streakText.textContent = `${currentStreak} STREAK!`;
+            streakAnnouncement.style.animation = 'none';
+            streakAnnouncement.offsetHeight; 
+            streakAnnouncement.style.animation = null;
+            streakAnnouncement.classList.add('streak-toast');
+            setTimeout(() => streakAnnouncement.classList.remove('streak-toast'), 2000);
+        }
+
+        function initProgressBar() {
+            uiProgressContainer.innerHTML = '';
+            for(let i=0; i<currentRoundTotal; i++) {
+                const seg = document.createElement('div');
+                seg.className = 'h-2 md:h-3 flex-1 rounded-full bg-slate-700/50 transition-colors duration-300';
+                seg.id = `prog-seg-${i}`;
+                uiProgressContainer.appendChild(seg);
+            }
+            progressIndex = 0;
+        }
+
+        function updateProgressSegment(status) {
+            if(progressIndex >= currentRoundTotal) return;
+            const seg = document.getElementById(`prog-seg-${progressIndex}`);
+            if (status === 'correct') {
+                seg.classList.replace('bg-slate-700/50', 'bg-emerald-500');
+                seg.classList.add('shadow-[0_0_10px_rgba(16,185,129,0.5)]');
+            } else if (status === 'mistake') {
+                seg.classList.replace('bg-slate-700/50', 'bg-orange-500');
+                seg.classList.add('shadow-[0_0_10px_rgba(249,115,22,0.5)]');
+            }
+        }
+
+        function startNewRound(themeOverride = null) {
+            if (themeOverride) currentThemeName = themeOverride;
+            uiThemeTitle.textContent = currentThemeName;
+            
+            const shuffledLangs = [...LANG_CODES].sort(() => Math.random() - 0.5);
+            roundLanguages = shuffledLangs.slice(0, currentRoundTotal);
+            
+            currentWordsQueue = roundLanguages.map(lang => ({
+                lang: lang,
+                data: GAME_DATA[currentThemeName][lang]
+            })).sort(() => Math.random() - 0.5);
+            
+            initProgressBar();
+            setupDropZones();
+            showNextCard();
+        }
+
+        function setupDropZones() {
+            uiDropZonesContainer.innerHTML = '';
+            const visualLangs = [...roundLanguages].sort(() => Math.random() - 0.5);
+            
+            visualLangs.forEach(lang => {
+                const zoneWrap = document.createElement('div');
+                zoneWrap.className = 'flex flex-col items-center gap-2';
+
+                const zone = document.createElement('div');
+                // Ensure flags are completely circular and nicely sized
+                zone.className = 'drop-zone relative w-20 h-20 sm:w-28 sm:h-28 md:w-36 md:h-36 rounded-full border-4 border-slate-600 bg-slate-800 overflow-hidden flex items-center justify-center z-10';
+                zone.dataset.lang = lang;
+                
+                const img = document.createElement('img');
+                img.src = `https://flagcdn.com/w160/${FLAGS[lang]}.png`;
+                img.className = 'w-full h-full object-cover opacity-90 pointer-events-none scale-125'; // scale up slightly to cover corners if any
+                img.alt = lang;
+                
+                zone.appendChild(img);
+                zoneWrap.appendChild(zone);
+
+                // Add language label for tutorial mode
+                if (isTutorialMode) {
+                    const label = document.createElement('span');
+                    label.className = 'text-xs md:text-sm font-bold text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-600';
+                    label.textContent = LANG_NAMES[lang];
+                    zoneWrap.appendChild(label);
+                }
+
+                uiDropZonesContainer.appendChild(zoneWrap);
+            });
+        }
+
+        function showNextCard() {
+            // Un-gray all flags for the new word
+            document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('grayed-out'));
+
+            if (currentWordsQueue.length === 0) {
+                // Round Complete
+                playSound('theme-complete');
+                addXP(500); // Theme completion bonus
+                completedThemes.add(currentThemeName);
+                buildThemeList(); // Refresh checklist
+                
+                setTimeout(() => {
+                    const uncompleted = THEMES.filter(t => !completedThemes.has(t));
+                    const nextThemePool = uncompleted.length > 0 ? uncompleted : THEMES;
+                    const nextTheme = nextThemePool[Math.floor(Math.random() * nextThemePool.length)];
+                    startNewRound(nextTheme);
+                }, 1500);
+                return;
+            }
+
+            currentActiveWord = currentWordsQueue.pop();
+            wordAttempted = false; 
+            
+            uiCardWordNative.textContent = currentActiveWord.data.n;
+            if (currentActiveWord.data.r && currentActiveWord.data.r !== currentActiveWord.data.n) {
+                uiCardWordRoman.textContent = currentActiveWord.data.r;
+                uiCardWordRoman.style.display = 'block';
+            } else {
+                // If no romanization (e.g. English), hide it fully
+                uiCardWordRoman.style.display = 'none';
+            }
+
+            uiDragHint.style.opacity = '1';
+            
+            translateX = 0; translateY = 0;
+            uiActiveCard.style.transition = 'none';
+            uiActiveCard.style.transform = 'translate(0px, 0px) rotate(0deg) scale(0.5)';
+            uiActiveCard.style.opacity = '0';
+            uiActiveCard.classList.remove('hidden', 'dragging');
+            
+            void uiActiveCard.offsetWidth;
+            uiActiveCard.classList.add('pop-in');
+            
+            setTimeout(() => {
+                uiActiveCard.classList.remove('pop-in');
+                uiActiveCard.style.transform = 'translate(0px, 0px) rotate(0deg)';
+                uiActiveCard.style.opacity = '1';
+            }, 400);
+        }
+
+        uiActiveCard.addEventListener('pointerdown', (e) => {
+            initAudio(); 
+            isDragging = true;
+            uiActiveCard.classList.add('dragging');
+            uiActiveCard.classList.remove('snap-back');
+            uiActiveCard.setPointerCapture(e.pointerId);
+            
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+            
+            uiActiveCard.style.borderColor = '#3b82f6';
+            uiDragHint.style.opacity = '0'; 
+        });
+
+        uiActiveCard.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            const rotation = translateX * 0.05;
+            
+            uiActiveCard.style.transform = `translate(${translateX}px, ${translateY}px) rotate(${rotation}deg)`;
+            checkHover(e.clientX, e.clientY);
+        });
+
+        uiActiveCard.addEventListener('pointerup', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            uiActiveCard.classList.remove('dragging');
+            uiActiveCard.releasePointerCapture(e.pointerId);
+            uiActiveCard.style.borderColor = '#e2e8f0'; 
+            
+            clearHover();
+            evaluateDrop(e.clientX, e.clientY);
+        });
+        
+        uiActiveCard.addEventListener('pointercancel', (e) => {
+             if (!isDragging) return;
+             isDragging = false;
+             uiActiveCard.classList.remove('dragging');
+             uiActiveCard.style.borderColor = '#e2e8f0';
+             clearHover();
+             snapBack();
+        });
+
+        function checkHover(x, y) {
+            const zones = document.querySelectorAll('.drop-zone:not(.grayed-out)');
+            let foundHover = null;
+            
+            zones.forEach(zone => {
+                const rect = zone.getBoundingClientRect();
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    foundHover = zone;
+                }
+            });
+
+            if (currentHoveredZone !== foundHover) {
+                if (currentHoveredZone) currentHoveredZone.classList.remove('hovered');
+                currentHoveredZone = foundHover;
+                if (currentHoveredZone) currentHoveredZone.classList.add('hovered');
+            }
+        }
+
+        function clearHover() {
+            if (currentHoveredZone) {
+                currentHoveredZone.classList.remove('hovered');
+                currentHoveredZone = null;
+            }
+        }
+
+        function evaluateDrop(x, y) {
+            const zones = document.querySelectorAll('.drop-zone:not(.grayed-out)');
+            let droppedZone = null;
+            
+            for (let zone of zones) {
+                const rect = zone.getBoundingClientRect();
+                if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                    droppedZone = zone;
+                    break;
+                }
+            }
+
+            if (droppedZone) {
+                if (droppedZone.dataset.lang === currentActiveWord.lang) {
+                    handleCorrectDrop(droppedZone);
+                } else {
+                    handleWrongDrop(droppedZone);
+                }
+            } else {
+                snapBack();
+            }
+        }
+
+        function handleCorrectDrop(zone) {
+            playSound('success');
+            zone.classList.add('success-pulse');
+            setTimeout(() => zone.classList.remove('success-pulse'), 500);
+            
+            if (!wordAttempted) {
+                streak += 1;
+                addXP(100 + (streak * 10)); // Base + Streak Bonus
+                updateProgressSegment('correct');
+            } else {
+                addXP(25); // Correction XP
+                // Progress segment stays orange to indicate a corrected mistake
+            }
+            
+            progressIndex++; 
+            
+            const rect = zone.getBoundingClientRect();
+            const cardRect = uiActiveCard.getBoundingClientRect();
+            const targetX = rect.left + rect.width/2 - (cardRect.left - translateX + cardRect.width/2);
+            const targetY = rect.top + rect.height/2 - (cardRect.top - translateY + cardRect.height/2);
+            
+            uiActiveCard.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            uiActiveCard.style.transform = `translate(${targetX}px, ${targetY}px) scale(0.1) rotate(${translateX * 0.2}deg)`;
+            uiActiveCard.style.opacity = '0';
+            
+            setTimeout(() => {
+                uiActiveCard.classList.add('hidden');
+                uiActiveCard.style.transition = 'none';
+                showNextCard();
+            }, 300);
+        }
+
+        function handleWrongDrop(zone) {
+            playSound('error');
+            
+            if (!wordAttempted) {
+                wordAttempted = true;
+                streak = 0;
+                updateStats();
+                updateProgressSegment('mistake');
+            }
+            
+            // Gray out the incorrect target so they can't try it again for this word
+            zone.classList.add('grayed-out');
+            
+            uiActiveCard.style.transition = 'background-color 0.2s';
+            uiActiveCard.style.backgroundColor = '#fee2e2'; 
+            uiActiveCard.style.borderColor = '#ef4444';
+            
+            setTimeout(() => {
+                uiActiveCard.style.backgroundColor = '#ffffff';
+                uiActiveCard.style.borderColor = '#e2e8f0';
+            }, 300);
+
+            snapBack();
+        }
+
+        function snapBack() {
+            uiActiveCard.classList.add('snap-back');
+            translateX = 0; translateY = 0;
+            uiActiveCard.style.transform = `translate(0px, 0px) rotate(0deg)`;
+            uiDragHint.style.opacity = '1';
+        }
+
+        const themeListContainer = document.getElementById('theme-list');
+        
+        function buildThemeList() {
+            themeListContainer.innerHTML = '';
+            THEMES.forEach(theme => {
+                const isComplete = completedThemes.has(theme);
+                const btn = document.createElement('button');
+                
+                btn.className = `w-full text-left px-6 py-4 rounded-xl font-bold text-lg md:text-xl transition-colors border flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-cyan-500
+                    ${isComplete 
+                        ? 'bg-emerald-900/30 border-emerald-700 text-emerald-100 hover:bg-emerald-800/50' 
+                        : 'bg-slate-800 border-slate-600 text-white hover:bg-slate-700'}`;
+                
+                let innerHTML = `<span>${theme}</span>`;
+                if (isComplete) {
+                    innerHTML += `<svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`;
+                }
+                
+                btn.innerHTML = innerHTML;
+                btn.addEventListener('click', () => {
+                    closeModal();
+                    startNewRound(theme);
+                });
+                themeListContainer.appendChild(btn);
+            });
+        }
+
+        function openModal() {
+            buildThemeList(); // Rebuild to catch newly completed themes
+            themeModal.classList.remove('hidden');
+            requestAnimationFrame(() => themeModal.style.opacity = '1');
+        }
+
+        function closeModal() {
+            themeModal.style.opacity = '0';
+            setTimeout(() => themeModal.classList.add('hidden'), 300);
+        }
+
+        document.getElementById('theme-selector-btn').addEventListener('click', openModal);
+        document.getElementById('close-theme-modal').addEventListener('click', closeModal);
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            initAudio();
+            isTutorialMode = tutorialToggle.checked;
+            
+            startScreen.style.opacity = '0';
+            setTimeout(() => {
+                startScreen.classList.add('hidden');
+                startNewRound();
+            }, 300);
+        });
+
+        // Init initial stats UI
+        updateStats();
+    </script>
+</body>
+</html>
